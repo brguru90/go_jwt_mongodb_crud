@@ -11,8 +11,11 @@ import (
 	"learn_go/src/my_modules"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // @BasePath /api
@@ -29,12 +32,14 @@ import (
 // @Failure 500 {object} my_modules.ResponseFormat
 // @Router /user/ [get]
 func GetUserData(c *gin.Context) {
-	db_connection := database.POSTGRES_DB_CONNECTION
+	ctx := context.Background()
+	// db_connection := database.POSTGRES_DB_CONNECTION
 	payload, ok := my_modules.ExtractTokenPayload(c)
 	if !ok {
 		return
 	}
-	var uuid string = payload.Data.ID
+	var id string = payload.Data.ID
+	_id, err_id := primitive.ObjectIDFromHex(payload.Data.ID)
 
 	var _limit int64 = 100
 	var _page int64 = 0
@@ -46,21 +51,30 @@ func GetUserData(c *gin.Context) {
 		}
 	}
 
-	if uuid != "" {
+	if id != "" && err_id == nil {
 		var db_query string
-		var rows pgx.Rows
-		var err error
+		// var rows pgx.Rows
 
+		var err error
+		var cursor *mongo.Cursor
 		if _page > 0 {
-			// this pagination is just implemented to benchmark the api have multiple record
-			// for now lets assume admin as current use
 			var _offset = _limit * (_page - 1)
-			db_query = `SELECT * FROM users ORDER BY id OFFSET $2 LIMIT $1; `
-			// since its an pagination query sending request context, so query can be terminated if API request is cancelled
-			rows, err = db_connection.Query(c.Request.Context(), db_query, _limit, _offset)
+			log.WithFields(log.Fields{
+				"Skip":  _offset,
+				"Limit": _limit,
+			}).Info("Pagination...")
+			cursor, err = database.MONGO_COLLECTIONS.Users.Find(c.Request.Context(), bson.M{},
+				&options.FindOptions{
+					Sort: bson.M{
+						"_id": 1,
+					},
+					Skip:  &_offset,
+					Limit: &_limit,
+				})
 		} else {
-			db_query = `SELECT * FROM users WHERE uuid=$1`
-			rows, err = db_connection.Query(context.Background(), db_query, uuid)
+			cursor, err = database.MONGO_COLLECTIONS.Users.Find(ctx, bson.M{
+				"_id": _id,
+			})
 		}
 
 		if err != nil {
@@ -73,42 +87,91 @@ func GetUserData(c *gin.Context) {
 			my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "No record found", nil)
 			return
 		} else {
-			defer rows.Close() //importent to prevent connection leak
-			var rowSlice []my_modules.UserRow
-			for rows.Next() {
-				var r my_modules.UserRow
-				err := rows.Scan(&r.Column_id, &r.Column_uuid, &r.Column_name, &r.Column_email, &r.Column_description, &r.Column_createdAt, &r.Column_updatedAt)
-				if err != nil {
-					log.Errorln(fmt.Sprintf("Scan failed: %v\n", err))
-					continue
+			defer cursor.Close(ctx)
+			var usersData []database.UsersModel
+			for cursor.Next(c.Request.Context()) {
+				var userData database.UsersModel
+				if err = cursor.Decode(&userData); err != nil {
+					// log.Errorln(fmt.Sprintf("Scan failed: %v\n", err))
+					// continue
+					my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in retriving user data", nil)
+					return
 				}
-				rowSlice = append(rowSlice, r)
-			}
-			// log.Debugln("type=%T\nresult=%v", rowSlice, rowSlice)
-
-			if err := rows.Err(); err != nil {
-				if err != context.Canceled {
-					log.Errorln(fmt.Sprintf("Row Err in rows.Next/rows.Scan failed: %v\n", err))
-				}
-				my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in retriving user data", nil)
-				return
+				usersData = append(usersData, userData)
 			}
 
 			if _page > 0 {
 				total_users, _ := database.REDIS_DB_CONNECTION.Get(context.Background(), "users_count").Result()
 				total_users_int, _ := strconv.ParseInt(total_users, 10, 64)
 				my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", map[string]interface{}{
-					"users":       rowSlice,
+					"users":       usersData,
 					"cur_page":    _page,
 					"total_users": total_users_int,
 				})
 				return
 			} else {
-				my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", rowSlice[0])
+				my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", usersData[0])
 				return
 			}
-
 		}
+
+		// if _page > 0 {
+		// 	// this pagination is just implemented to benchmark the api have multiple record
+		// 	// for now lets assume admin as current use
+		// 	var _offset = _limit * (_page - 1)
+		// 	db_query = `SELECT * FROM users ORDER BY id OFFSET $2 LIMIT $1; `
+		// 	// since its an pagination query sending request context, so query can be terminated if API request is cancelled
+		// 	rows, err = db_connection.Query(c.Request.Context(), db_query, _limit, _offset)
+		// } else {
+		// 	db_query = `SELECT * FROM users WHERE uuid=$1`
+		// 	rows, err = db_connection.Query(context.Background(), db_query, uuid)
+		// }
+
+		// if err != nil {
+		// 	if err != context.Canceled {
+		// 		log.WithFields(log.Fields{
+		// 			"error": err,
+		// 			"query": db_query,
+		// 		}).Errorln("QueryRow failed ==>")
+		// 	}
+		// 	my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "No record found", nil)
+		// 	return
+		// } else {
+		// 	defer rows.Close() //importent to prevent connection leak
+		// 	var rowSlice []my_modules.UserRow
+		// 	for rows.Next() {
+		// 		var r my_modules.UserRow
+		// 		err := rows.Scan(&r.Column_id, &r.Column_uuid, &r.Column_name, &r.Column_email, &r.Column_description, &r.Column_createdAt, &r.Column_updatedAt)
+		// 		if err != nil {
+		// 			log.Errorln(fmt.Sprintf("Scan failed: %v\n", err))
+		// 			continue
+		// 		}
+		// 		rowSlice = append(rowSlice, r)
+		// 	}
+		// 	// log.Debugln("type=%T\nresult=%v", rowSlice, rowSlice)
+
+		// 	if err := rows.Err(); err != nil {
+		// 		if err != context.Canceled {
+		// 			log.Errorln(fmt.Sprintf("Row Err in rows.Next/rows.Scan failed: %v\n", err))
+		// 		}
+		// 		my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in retriving user data", nil)
+		// 		return
+		// 	}
+
+		// 	if _page > 0 {
+		// 		total_users, _ := database.REDIS_DB_CONNECTION.Get(context.Background(), "users_count").Result()
+		// 		total_users_int, _ := strconv.ParseInt(total_users, 10, 64)
+		// 		my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", map[string]interface{}{
+		// 			"users":       rowSlice,
+		// 			"cur_page":    _page,
+		// 			"total_users": total_users_int,
+		// 		})
+		// 		return
+		// 	} else {
+		// 		my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", rowSlice[0])
+		// 		return
+		// 	}
+		// }
 	} else {
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Didn't got UUID", nil)
 		return
