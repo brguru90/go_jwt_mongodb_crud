@@ -8,7 +8,7 @@ export default function user_profile() {
     let { state } = useLocation()
     let navigate = useNavigate()
 
-    const [userData, setUserData] = useState({ uuid: state?.uuid })
+    const [userData, setUserData] = useState({ _id: state?._id })
     const [activeSessions, setUserActiveSessions] = useState([])
     let email = useRef(null)
     let name = useRef(null)
@@ -47,7 +47,7 @@ export default function user_profile() {
             }),
         }, () => navigate("/"))
             .then(() => {
-                newUserData.uuid = userData.uuid
+                newUserData._id = userData._id
                 setUserData(newUserData)
             })
             .catch(e => alert("Error\n" + JSON.stringify(e)))
@@ -131,12 +131,12 @@ export default function user_profile() {
                         <table>
                             <tbody>
                                 <tr>
-                                    <td>UUID</td>
+                                    <td>_id</td>
                                     <td>
                                         <input
                                             type="text"
                                             disabled
-                                            value={userData?.uuid || ""}
+                                            value={userData?._id || ""}
                                         />
                                     </td>
                                 </tr>
@@ -179,12 +179,12 @@ export default function user_profile() {
                         <table>
                             <tbody>
                                 <tr>
-                                    <td>UUID</td>
+                                    <td>_id</td>
                                     <td>
                                         <input
                                             type="text"
                                             disabled
-                                            value={userData?.uuid || ""}
+                                            value={userData?._id || ""}
                                         />
                                     </td>
                                 </tr>
@@ -238,12 +238,12 @@ export default function user_profile() {
                         <table>
                             <tbody>
                                 <tr>
-                                    <td>UUID</td>
+                                    <td>_id</td>
                                     <td>
                                         <input
                                             type="text"
                                             disabled
-                                            value={userData?.uuid || ""}
+                                            value={userData?._id || ""}
                                         />
                                     </td>
                                 </tr>
