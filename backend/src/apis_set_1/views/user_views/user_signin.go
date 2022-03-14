@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	log "github.com/sirupsen/logrus"
 )
-
 
 // @BasePath /api
 // @Summary url to signup
@@ -29,59 +29,60 @@ import (
 // @Failure 403 {object} my_modules.ResponseFormat
 // @Router /sign_up [post]
 func SignUp(c *gin.Context) {
-	db_connection := database.POSTGRES_DB_CONNECTION
-	// in Progress
-	
+	ctx := context.Background()
 	var newUserRow my_modules.NewUserRow
 	// ShouldBindJSON will validate json body & convert it to structure object
 	if err := c.ShouldBindJSON(&newUserRow); err != nil {
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Invalid input data format", nil)
 		return
 	}
-	_time := time.Now()
-
-	ins_res,ins_err:=database.MONGO_COLLECTIONS.Users.InsertOne(context.Background(),database.UsersModel{
-		Email: newUserRow.Column_email,
-		Name: newUserRow.Column_name,
-		Description: newUserRow.Column_description,
-	})
-	if ins_err!=nil{
-		log.WithFields(log.Fields{
-			"ins_err":ins_err,
-		}).Errorln("Error in inserting data to mongo users")
-	} else{
-		log.WithFields(log.Fields{
-			"ins_res":ins_res,
-		}).Info("successfully inserted data into mongo users")
+	var newUserData database.UsersModel
+	{
+		_time := time.Now()
+		newUserData = database.UsersModel{
+			Email:       newUserRow.Column_email,
+			Name:        newUserRow.Column_name,
+			Description: newUserRow.Column_description,
+			CreatedAt:   _time,
+			UpdatedAt:   _time,
+		}
+		ins_res, ins_err := database.MONGO_COLLECTIONS.Users.InsertOne(ctx, newUserData)
+		if ins_err != nil {
+			log.WithFields(log.Fields{
+				"ins_err": ins_err,
+			}).Errorln("Error in inserting data to mongo users")
+			my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in Regestering new user", nil)
+			return
+		} else {
+			newUserData.ID = ins_res.InsertedID.(primitive.ObjectID)
+			// log.WithFields(log.Fields{
+			// 	"ins_res": ins_res.InsertedID,
+			// 	"type":    fmt.Sprintf("%T", ins_res.InsertedID),
+			// }).Info("successfully inserted data into mongo users")
+		}
 	}
-
-	const user_sql_stmt string = `INSERT INTO users ("name","email","description","uuid","createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6) RETURNING id,uuid,name,email,description,"createdAt","updatedAt"`
-	user_err := db_connection.QueryRow(context.Background(), user_sql_stmt, newUserRow.Column_name, newUserRow.Column_email, newUserRow.Column_description, uuid.New().String(), _time, _time).Scan(&newUserRow.Column_id, &newUserRow.Column_uuid, &newUserRow.Column_name, &newUserRow.Column_email, &newUserRow.Column_description, &newUserRow.Column_createdAt, &newUserRow.Column_updatedAt)
-	if user_err != nil {
-		log.WithFields(log.Fields{
-			"Error": user_err,
-		}).Error("Error in inserting user data")
-		my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in Regestering new user", nil)
-		return
+	access_token_payload := my_modules.Authenticate(c, newUserData)
+	{
+		_time := time.Now()
+		_, ins_err := database.MONGO_COLLECTIONS.ActiveSessions.InsertOne(ctx, database.ActiveSessionsModel{
+			UserID:    newUserData.ID,
+			TokenID:   access_token_payload.Token_id,
+			IP:        c.ClientIP(),
+			UA:        c.GetHeader("User-Agent"),
+			Exp:       access_token_payload.Exp,
+			Status:    "active",
+			CreatedAt: _time,
+			UpdatedAt: _time,
+		})
+		if ins_err != nil {
+			log.WithFields(log.Fields{
+				"ins_err": ins_err,
+			}).Errorln("Error in inserting data to mongo users")
+			my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in Regestering new user while marking active", nil)
+			return
+		}
 	}
-
-	access_token_payload := my_modules.Authenticate(c, newUserRow)
-
-	var active_sessions_id int64
-	var active_sessions_uuid string
-	_time = time.Now()
-
-	const active_sessions_sql_stmt string = `INSERT INTO active_sessions ("uuid","user_uuid","token_id","ua","ip","exp","status","createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,uuid`
-	active_sessions_err := db_connection.QueryRow(context.Background(), active_sessions_sql_stmt, uuid.New().String(), newUserRow.Column_uuid, access_token_payload.Token_id, c.GetHeader("User-Agent"), c.ClientIP(), access_token_payload.Exp, "active", _time, _time).Scan(&active_sessions_id, &active_sessions_uuid)
-	if active_sessions_err != nil {
-		log.WithFields(log.Fields{
-			"Error": active_sessions_err,
-		}).Error("Error in inserting active_sessions data")
-		my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in Regestering new user while marking active", nil)
-		return
-	}
-
-	my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Regesteration successfully", newUserRow)
+	my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Regesteration successfully", newUserData)
 }
 
 type UserEmailID struct {
@@ -101,58 +102,62 @@ type UserEmailID struct {
 // @Failure 500 {object} my_modules.ResponseFormat
 // @Router /login [post]
 func Login(c *gin.Context) {
-	db_connection := database.POSTGRES_DB_CONNECTION
-
+	ctx := context.Background()
 	var userEmailID UserEmailID
 	if err := c.ShouldBindJSON(&userEmailID); err != nil {
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Invalid input data format", nil)
 		return
 	}
-
-	var newUserRow my_modules.NewUserRow
-	const sql_stmt string = `SELECT * FROM users WHERE email=$1`
-	err := db_connection.QueryRow(context.Background(), sql_stmt, userEmailID.Email).Scan(&newUserRow.Column_id, &newUserRow.Column_uuid, &newUserRow.Column_name, &newUserRow.Column_email, &newUserRow.Column_description, &newUserRow.Column_createdAt, &newUserRow.Column_updatedAt)
-	if err != nil {
-		if err == pgx.ErrNoRows {
+	var userData database.UsersModel
+	{
+		err := database.MONGO_COLLECTIONS.Users.FindOne(ctx, bson.M{
+			"email": userEmailID.Email,
+		}).Decode(&userData)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				log.WithFields(log.Fields{
+					"Error": err,
+					"Email": userData.Email,
+				}).Warning("Error in finding user email")
+				my_modules.CreateAndSendResponse(c, http.StatusForbidden, "error", "Invalid credential", nil)
+				return
+			}
 			log.WithFields(log.Fields{
 				"Error": err,
-				"Email": userEmailID.Email,
-			}).Warning("Error in finding user email")
-			my_modules.CreateAndSendResponse(c, http.StatusForbidden, "error", "Invalid credential", nil)
+				"Email": userData.Email,
+			}).Error("Error in finding user email")
+			my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Error in finding user", nil)
 			return
 		}
-		log.WithFields(log.Fields{
-			"Error": err,
-			"Email": userEmailID.Email,
-		}).Error("Error in finding user email")
-		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Error in finding user", nil)
-		return
 	}
-
-	access_token_payload := my_modules.Authenticate(c, newUserRow)
-
-	var active_sessions_id int64
-	var active_sessions_uuid string
-	_time := time.Now()
-
-	const active_sessions_sql_stmt string = `INSERT INTO active_sessions ("uuid","user_uuid","token_id","ua","ip","exp","status","createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,uuid`
-	active_sessions_err := db_connection.QueryRow(context.Background(), active_sessions_sql_stmt, uuid.New().String(), newUserRow.Column_uuid, access_token_payload.Token_id, c.GetHeader("User-Agent"), c.ClientIP(), access_token_payload.Exp, "active", _time, _time).Scan(&active_sessions_id, &active_sessions_uuid)
-	if active_sessions_err != nil {
-		log.WithFields(log.Fields{
-			"Error": active_sessions_err,
-		}).Error("Error in inserting active_sessions data")
-		my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in Loggin in user while marking active", nil)
-		return
+	access_token_payload := my_modules.Authenticate(c, userData)
+	{
+		_time := time.Now()
+		_, ins_err := database.MONGO_COLLECTIONS.ActiveSessions.InsertOne(ctx, database.ActiveSessionsModel{
+			UserID:    userData.ID,
+			TokenID:   access_token_payload.Token_id,
+			IP:        c.ClientIP(),
+			UA:        c.GetHeader("User-Agent"),
+			Exp:       access_token_payload.Exp,
+			Status:    "active",
+			CreatedAt: _time,
+			UpdatedAt: _time,
+		})
+		if ins_err != nil {
+			log.WithFields(log.Fields{
+				"ins_err": ins_err,
+			}).Errorln("Error in inserting data to mongo users")
+			my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in Regestering new user while marking active", nil)
+			return
+		}
 	}
-
-	my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Authorization success", newUserRow)
+	my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Authorization success", userData)
 }
 
-
 // @BasePath /api
-// @Summary 
+// @Summary
 // @Schemes
-// @Description api used to validate user login session 
+// @Description api used to validate user login session
 // @Tags Login status
 // @Accept json
 // @Produce json

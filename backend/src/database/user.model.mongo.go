@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	log "github.com/sirupsen/logrus"
 )
 
 type UsersModel struct {
@@ -16,6 +16,8 @@ type UsersModel struct {
 	Email       string             `json:"email,omitempty" bson:"email,omitempty"`
 	Name        string             `json:"name,omitempty" binding:"required" bson:"name,omitempty"`
 	Description string             `json:"description,omitempty" bson:"description,omitempty"`
+	CreatedAt   time.Time          `json:"createdAt,omitempty"`
+	UpdatedAt   time.Time          `json:"updatedAt,omitempty"`
 }
 
 func InitUserCollection() {
@@ -29,10 +31,10 @@ func InitUserCollection() {
 	}
 
 	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
-	_,err:=MONGO_COLLECTIONS.Users.Indexes().CreateMany(context.Background(), indexes, opts)
-	if err!=nil{
+	_, err := MONGO_COLLECTIONS.Users.Indexes().CreateMany(context.Background(), indexes, opts)
+	if err != nil {
 		log.WithFields(log.Fields{
-			"err":err,
+			"err": err,
 		}).Errorln("error in creating index on UsersModel")
 	}
 }

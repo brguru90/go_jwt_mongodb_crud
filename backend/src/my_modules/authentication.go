@@ -23,7 +23,7 @@ var JWT_SECRET_KEY string = os.Getenv("JWT_SECRET_KEY")
 
 type TokenPayload struct {
 	Email string `json:"email" binding:"required"`
-	UUID  string `json:"uuid" binding:"required"`
+	ID    string `json:"_id" binding:"required"`
 }
 type AccessToken struct {
 	Data TokenPayload `json:"data" binding:"required"`
@@ -51,7 +51,7 @@ func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (st
 	token_id := ""
 
 	if _rand, r_err := randomBytes(100); r_err == nil {
-		token_id = data.UUID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.Itoa(int(time_now))
+		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.Itoa(int(time_now))
 	}
 
 	var accessTokenPayload AccessTokenClaims = AccessTokenClaims{
@@ -123,13 +123,13 @@ func EnsureCsrfToken(c *gin.Context) string {
 	return csrf_token
 }
 
-func Authenticate(c *gin.Context, newUserRow NewUserRow) AccessToken {
+func Authenticate(c *gin.Context, newUserRow database.UsersModel) AccessToken {
 	token_payload := TokenPayload{
-		Email: newUserRow.Column_email,
-		UUID:  newUserRow.Column_uuid,
+		Email: newUserRow.Email,
+		ID:    newUserRow.ID.Hex(),
 	}
 	access_token, access_token_payload := GenerateAccessToken(
-		newUserRow.Column_email,
+		newUserRow.Email,
 		EnsureCsrfToken(c),
 		token_payload,
 	)
