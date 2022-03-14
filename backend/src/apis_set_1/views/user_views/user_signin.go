@@ -39,6 +39,22 @@ func SignUp(c *gin.Context) {
 		return
 	}
 	_time := time.Now()
+
+	ins_res,ins_err:=database.MONGO_COLLECTIONS.Users.InsertOne(context.Background(),database.UsersModel{
+		Email: newUserRow.Column_email,
+		Name: newUserRow.Column_name,
+		Description: newUserRow.Column_description,
+	})
+	if ins_err!=nil{
+		log.WithFields(log.Fields{
+			"ins_err":ins_err,
+		}).Errorln("Error in inserting data to mongo users")
+	} else{
+		log.WithFields(log.Fields{
+			"ins_res":ins_res,
+		}).Info("successfully inserted data into mongo users")
+	}
+
 	const user_sql_stmt string = `INSERT INTO users ("name","email","description","uuid","createdAt","updatedAt") VALUES($1,$2,$3,$4,$5,$6) RETURNING id,uuid,name,email,description,"createdAt","updatedAt"`
 	user_err := db_connection.QueryRow(context.Background(), user_sql_stmt, newUserRow.Column_name, newUserRow.Column_email, newUserRow.Column_description, uuid.New().String(), _time, _time).Scan(&newUserRow.Column_id, &newUserRow.Column_uuid, &newUserRow.Column_name, &newUserRow.Column_email, &newUserRow.Column_description, &newUserRow.Column_createdAt, &newUserRow.Column_updatedAt)
 	if user_err != nil {

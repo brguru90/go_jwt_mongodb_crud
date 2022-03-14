@@ -24,6 +24,7 @@ func main() {
 
 	my_modules.InitLogger()
 	database.ConnectPostgres()
+	database.InitMongoDB()
 	database.ConnectRedis()
 	database.InitRedisPool()
 	go my_modules.InitCronJobs()
