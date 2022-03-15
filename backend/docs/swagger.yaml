@@ -55,44 +55,6 @@ definitions:
 info:
   contact: {}
 paths:
-  /del_user_cache/{id}:
-    get:
-      consumes:
-      - application/json
-      description: will be used in postgres trigger to delete redis cache
-      parameters:
-      - description: user id
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: trigger secret
-        in: header
-        name: secret
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/my_modules.ResponseFormat'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/my_modules.ResponseFormat'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/my_modules.ResponseFormat'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/my_modules.ResponseFormat'
-      summary: InvalidateUsercache
-      tags:
-      - Delete user cache
   /hello/{page}/{limit}:
     get:
       consumes:

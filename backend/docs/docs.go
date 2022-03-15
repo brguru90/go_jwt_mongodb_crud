@@ -16,63 +16,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/del_user_cache/{id}": {
-            "get": {
-                "description": "will be used in postgres trigger to delete redis cache",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Delete user cache"
-                ],
-                "summary": "InvalidateUsercache",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "user id",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "trigger secret",
-                        "name": "secret",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/my_modules.ResponseFormat"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/my_modules.ResponseFormat"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/my_modules.ResponseFormat"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/my_modules.ResponseFormat"
-                        }
-                    }
-                }
-            }
-        },
         "/hello/{page}/{limit}": {
             "get": {
                 "description": "just to test,and work space to play with request",
