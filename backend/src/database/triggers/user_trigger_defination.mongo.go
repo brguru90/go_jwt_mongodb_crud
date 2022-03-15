@@ -3,12 +3,12 @@ package triggers
 import (
 	"context"
 	"learn_go/src/database"
+	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 )
-
 
 func deleteUserCache(_id string, ctx context.Context) {
 	// Deletes the cache for the specified user by his ID
@@ -23,7 +23,7 @@ func deleteUserCache(_id string, ctx context.Context) {
 	}
 }
 
-func eraseAllUserPaginationCache(ctx context.Context)  {
+func eraseAllUserPaginationCache(ctx context.Context) {
 	// erasing pagination caches
 	_paginated_keys, err := database.REDIS_DB_CONNECTION.Keys(ctx, "users___paginated*").Result()
 	if err == nil {
@@ -33,39 +33,69 @@ func eraseAllUserPaginationCache(ctx context.Context)  {
 				"key": key,
 			}).Debugln(">>>>>>>>>>>>>>>> Redis, users___paginated removed")
 		}
-	}	
+	}
 }
 
-
-func getUsersCount(ctx context.Context)  {
-	count,err:=database.MONGO_COLLECTIONS.Users.CountDocuments(ctx,bson.M{})
-	if err==nil{
-		err2:=database.REDIS_DB_CONNECTION.Set(ctx,"users_count",count,time.Second*0).Err()
-		if err2!=nil{
+func getUsersCount(ctx context.Context) {
+	count, err := database.MONGO_COLLECTIONS.Users.CountDocuments(ctx, bson.M{})
+	if err == nil {
+		err2 := database.REDIS_DB_CONNECTION.Set(ctx, "users_count", count, time.Second*0).Err()
+		if err2 != nil {
 			log.WithFields(log.Fields{
-				"errors":err2,
+				"errors": err2,
 			}).Errorln("Error in setting user count to redis")
 		}
 	} else {
 		log.WithFields(log.Fields{
-			"errors":err,
+			"errors": err,
 		}).Errorln("Error in getting user count")
 	}
 }
 
-func invalidateCache(_id string)  {
-	ctx := context.Background()
-	database.REDIS_DB_CONNECTION.Set(ctx, "users_update_in_progress", "true", time.Second*0)
+func modifyCacheProgressStatus(operation string, ctx context.Context) {
+	const max_users_update_in_progress_ttl=time.Minute*5
+	
+	users_update_in_progress, err := database.REDIS_DB_CONNECTION.Get(ctx, "users_update_in_progress").Result()
+	if err == nil {
+		users_update_in_progress_int, _ := strconv.ParseInt(users_update_in_progress, 10, 64)
+		if operation=="delete"{
+			users_update_in_progress_int--
+			if users_update_in_progress_int==0{
+				database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
+				log.Debugln("deleted users_update_in_progress")				
+			}
+		} else{
+			users_update_in_progress_int++
+		}
 
-	eraseAllUserPaginationCache(ctx)
-	deleteUserCache(_id,ctx)
-	getUsersCount(ctx)
+		// log.WithFields(log.Fields{
+		// 	"users_update_in_progress_int":users_update_in_progress_int,
+		// }).Debugln("modifyCacheProgressStatus")
 
-	database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
-	log.Infoln("deleted users_update_in_progress")
+		if users_update_in_progress_int!=0{
+			database.REDIS_DB_CONNECTION.Set(ctx, "users_update_in_progress", strconv.FormatInt(users_update_in_progress_int, 10),max_users_update_in_progress_ttl )
+		}
+	} else {
+		if operation != "delete" {
+			database.REDIS_DB_CONNECTION.Set(ctx, "users_update_in_progress", "1", max_users_update_in_progress_ttl)
+		}
+	}
 }
 
+func invalidateCache(_id string) {
+	log.WithFields(log.Fields{
+		"_id":_id,
+	}).Debugln("invalidateCache....")
+	ctx := context.Background()
 
-func OnUserModification(_id string,userData database.UsersModel,operationType string)  {
-	invalidateCache(_id)
+	modifyCacheProgressStatus("insert",ctx)
+	eraseAllUserPaginationCache(ctx)
+	deleteUserCache(_id, ctx)
+	modifyCacheProgressStatus("delete",ctx)
+
+	getUsersCount(ctx)
+}
+
+func OnUserModification(_id string, userData database.UsersModel, operationType string) {
+	go invalidateCache(_id)
 }

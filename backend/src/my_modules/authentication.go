@@ -51,7 +51,7 @@ func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (st
 	token_id := ""
 
 	if _rand, r_err := randomBytes(100); r_err == nil {
-		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.Itoa(int(time_now))
+		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.FormatInt(int64(time_now),10)
 	}
 
 	var accessTokenPayload AccessTokenClaims = AccessTokenClaims{

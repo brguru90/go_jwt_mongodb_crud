@@ -103,15 +103,15 @@ export default function user_profile() {
         gerUserData()
         gerUserActiveSessions()
 
-        if (!_interval) {
-            _interval = setInterval(() => {
-                login_check()
-            }, 2000);
-        }
+        // if (!_interval) {
+        //     _interval = setInterval(() => {
+        //         login_check()
+        //     }, 2000);
+        // }
 
-        return () => {
-            clearInterval(_interval)
-        }
+        // return () => {
+        //     clearInterval(_interval)
+        // }
 
 
     }, [])

@@ -33,7 +33,7 @@ func TriggerForUsersModification() {
 				"err": err,
 			}).Panicln("Users: Error in fetching data from mongo trigger stream")
 		}
-		log.Warnln(data)
+		// log.Warnln(data)
 		// operationType: insert,delete,update
 		if data["fullDocument"] != "" {
 			var userData database.UsersModel
@@ -53,6 +53,9 @@ func TriggerForUsersModification() {
 					userData.ID=document_key
 					OnUserModification(document_key.Hex(),userData,data["operationType"].(string))
 				}
+			case "delete":{
+				
+			}
 			default:
 				log.WithFields(log.Fields{
 					"operationType":data["operationType"],
@@ -60,7 +63,7 @@ func TriggerForUsersModification() {
 				}).Warnln("Unhandled operation")
 			}
 
-			log.Infoln(userData)
+			// log.Infoln(userData)
 		}
 
 	}
