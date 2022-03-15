@@ -27,7 +27,10 @@ func InitMongoDB() {
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	var err error
-	MONGO_DB_CONNECTION, err = mongo.Connect(ctx, options.Client().ApplyURI(mongo_url))
+
+	clientOptions := options.Client().ApplyURI(mongo_url)
+	clientOptions = clientOptions.SetMaxPoolSize(100)
+	MONGO_DB_CONNECTION, err = mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error":  err,
@@ -41,14 +44,14 @@ func InitMongoDB() {
 
 	InitUserCollection()
 	InitActiveSessionCollection()
-	createSampleCollection()	
+	createSampleCollection()
 }
 
 func createSampleCollection() {
-	collection_name:="sample_collection"
-	ctx, _:= context.WithTimeout(context.Background(), 10*time.Second)
+	collection_name := "sample_collection"
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	command := bson.D{{"create", collection_name}}
-	var result bson.M=bson.M{
+	var result bson.M = bson.M{
 		"bsonType": "object",
 		"required": []string{"endpointID", "ip", "port", "lastHeartbeatDate"},
 		"properties": bson.M{
