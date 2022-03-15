@@ -7,6 +7,7 @@ import (
 
 	"learn_go/src/apis_set_1"
 	"learn_go/src/database"
+	"learn_go/src/database/triggers"
 	"learn_go/src/middlewares"
 	"learn_go/src/my_modules"
 
@@ -27,6 +28,7 @@ func main() {
 	database.InitMongoDB()
 	database.ConnectRedis()
 	database.InitRedisPool()
+	go triggers.TriggerForUsersModification()
 	go my_modules.InitCronJobs()
 
 	// init with default middlewares

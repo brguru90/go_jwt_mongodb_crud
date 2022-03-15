@@ -41,7 +41,7 @@ func InitMongoDB() {
 
 	InitUserCollection()
 	InitActiveSessionCollection()
-	createSampleCollection()
+	createSampleCollection()	
 }
 
 func createSampleCollection() {
