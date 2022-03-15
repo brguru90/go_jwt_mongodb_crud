@@ -13,7 +13,7 @@ def random_str(N):
 count_insert=0
 
 # just give evenly dividable numbers
-def sql_populate(DATA_COUNT=10000,BATCH_SIZE=1000):
+def sql_populate(DATA_COUNT=1220000,BATCH_SIZE=2000):
 
     def insert_into_tb(i):
         try:
@@ -23,7 +23,7 @@ def sql_populate(DATA_COUNT=10000,BATCH_SIZE=1000):
 
             row={
                 "name":random_str(10),
-                "email":f"'{random_str(5)}@{random_str(5)}.com'",
+                "email":f"{random_str(5)}@{random_str(5)}.com",
                 "description":random_str(400),
                 "createdAt":datetime.datetime.now(),
                 "updatedAt":datetime.datetime.now()

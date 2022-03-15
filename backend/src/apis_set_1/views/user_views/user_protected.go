@@ -2,6 +2,7 @@ package user_views
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -54,10 +55,6 @@ func GetUserData(c *gin.Context) {
 		var cursor *mongo.Cursor
 		if _page > 0 {
 			var _offset = _limit * (_page - 1)
-			log.WithFields(log.Fields{
-				"Skip":  _offset,
-				"Limit": _limit,
-			}).Info("Pagination...")
 			cursor, err = database.MONGO_COLLECTIONS.Users.Find(c.Request.Context(), bson.M{},
 				&options.FindOptions{
 					Sort: bson.M{
@@ -86,7 +83,7 @@ func GetUserData(c *gin.Context) {
 			for cursor.Next(c.Request.Context()) {
 				var userData database.UsersModel
 				if err = cursor.Decode(&userData); err != nil {
-					// log.Errorln(fmt.Sprintf("Scan failed: %v\n", err))
+					log.Errorln(fmt.Sprintf("Scan failed: %v\n", err))
 					// continue
 					my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in retriving user data", nil)
 					return
@@ -113,7 +110,6 @@ func GetUserData(c *gin.Context) {
 		return
 	}
 }
-
 
 // @BasePath /api
 // @Summary url to update user data
@@ -307,35 +303,34 @@ func Logout(c *gin.Context) {
 func updateActiveSession(activeSessionsRow database.ActiveSessionsModel, status string) (int64, error) {
 	// db_connection := database.POSTGRES_DB_CONNECTION
 
-	where_map:=map[string]interface{}{
-		"user_id": activeSessionsRow.UserID,
-		"token_id":activeSessionsRow.TokenID,
-		"exp":activeSessionsRow.Exp,
+	where_map := map[string]interface{}{
+		"user_id":  activeSessionsRow.UserID,
+		"token_id": activeSessionsRow.TokenID,
+		"exp":      activeSessionsRow.Exp,
 	}
 	if status == "blocked" {
-		where_map["status"]="active"
+		where_map["status"] = "active"
 	}
 
-	where,err_bson:=bson.Marshal(where_map)
-	if err_bson!=nil{
+	where, err_bson := bson.Marshal(where_map)
+	if err_bson != nil {
 		return -1, err_bson
 	}
 
-
-	result,err:=database.MONGO_COLLECTIONS.ActiveSessions.UpdateOne(
+	result, err := database.MONGO_COLLECTIONS.ActiveSessions.UpdateOne(
 		context.Background(),
 		where,
 		bson.M{
-			"$set":bson.M{ "status":status},
+			"$set": bson.M{"status": status},
 		},
 	)
-	if err!=nil{
+	if err != nil {
 		log.WithFields(log.Fields{
-			"err": err,			
+			"err": err,
 		}).Errorln("Failed to update user data")
 		return -1, err
 	}
-	rows_updated:=result.ModifiedCount
+	rows_updated := result.ModifiedCount
 	return rows_updated, nil
 }
 

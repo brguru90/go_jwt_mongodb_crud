@@ -28,6 +28,19 @@ func InitUserCollection() {
 			},
 			Options: options.Index().SetUnique(true),
 		},
+		{
+			Keys: bson.D{
+				{
+					Key:   "_id",
+					Value: 1,
+				},
+				{
+					Key:   "email",
+					Value: 1,
+				},
+			},
+			Options: options.Index().SetUnique(true),
+		},
 	}
 
 	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
