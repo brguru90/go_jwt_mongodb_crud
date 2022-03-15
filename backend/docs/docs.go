@@ -222,7 +222,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/my_modules.NewUserRow"
+                            "$ref": "#/definitions/database.UsersModel"
                         }
                     }
                 ],
@@ -321,7 +321,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/my_modules.NewUserRow"
+                            "$ref": "#/definitions/database.UsersModel"
                         }
                     }
                 ],
@@ -453,7 +453,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/my_modules.ActiveSessionsRow"
+                            "$ref": "#/definitions/database.ActiveSessionsModel"
                         }
                     }
                 ],
@@ -528,18 +528,16 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "my_modules.ActiveSessionsRow": {
+        "database.ActiveSessionsModel": {
             "type": "object",
-            "required": [
-                "exp",
-                "token_id"
-            ],
             "properties": {
-                "createdAt": {},
-                "exp": {
-                    "type": "integer"
+                "_id": {
+                    "type": "string"
                 },
-                "id": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "exp": {
                     "type": "integer"
                 },
                 "ip": {
@@ -554,16 +552,15 @@ const docTemplate = `{
                 "ua": {
                     "type": "string"
                 },
-                "updatedAt": {},
-                "user_uuid": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "uuid": {
+                "user_id": {
                     "type": "string"
                 }
             }
         },
-        "my_modules.NewUserRow": {
+        "database.UsersModel": {
             "type": "object",
             "required": [
                 "description",
@@ -571,21 +568,22 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
-                "createdAt": {},
+                "_id": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
                 "email": {
                     "type": "string"
                 },
-                "id": {
-                    "type": "integer"
-                },
                 "name": {
                     "type": "string"
                 },
-                "updatedAt": {},
-                "uuid": {
+                "updatedAt": {
                     "type": "string"
                 }
             }

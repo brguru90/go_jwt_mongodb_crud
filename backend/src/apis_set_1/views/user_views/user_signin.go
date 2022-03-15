@@ -22,7 +22,7 @@ import (
 // @Tags SignUp
 // @Accept json
 // @Produce json
-// @Param new_user body my_modules.NewUserRow true "Add user"
+// @Param new_user body database.UsersModel true "Add user"
 // @Success 200 {object} my_modules.ResponseFormat
 // @Failure 400 {object} my_modules.ResponseFormat
 // @Failure 500 {object} my_modules.ResponseFormat
@@ -30,7 +30,7 @@ import (
 // @Router /sign_up [post]
 func SignUp(c *gin.Context) {
 	ctx := context.Background()
-	var newUserRow my_modules.NewUserRow
+	var newUserRow database.UsersModel
 	// ShouldBindJSON will validate json body & convert it to structure object
 	if err := c.ShouldBindJSON(&newUserRow); err != nil {
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Invalid input data format", nil)
@@ -40,9 +40,9 @@ func SignUp(c *gin.Context) {
 	{
 		_time := time.Now()
 		newUserData = database.UsersModel{
-			Email:       newUserRow.Column_email,
-			Name:        newUserRow.Column_name,
-			Description: newUserRow.Column_description,
+			Email:       newUserRow.Email,
+			Name:        newUserRow.Name,
+			Description: newUserRow.Description,
 			CreatedAt:   _time,
 			UpdatedAt:   _time,
 		}

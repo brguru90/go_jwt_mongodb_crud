@@ -306,7 +306,7 @@ export default function user_profile() {
                                                    {status=="active" && <input type="button" value={"Block & Remove"} onClick={() => blockToken(token_id, exp)} />} 
                                                 </td>
                                                 <td className="ip">{ip}</td>
-                                                <td>{token_id}</td>
+                                                <td style={{maxWidth:"300px",wordBreak:"break-all"}}>{token_id}</td>
                                                 <td className="ip">{status}</td>
                                                 <td>{new Date(exp).toLocaleString()}</td>
                                                 <td>

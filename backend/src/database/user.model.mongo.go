@@ -13,9 +13,9 @@ import (
 
 type UsersModel struct {
 	ID          primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
-	Email       string             `json:"email,omitempty" bson:"email,omitempty"`
+	Email       string             `json:"email,omitempty" binding:"required" bson:"email,omitempty"`
 	Name        string             `json:"name,omitempty" binding:"required" bson:"name,omitempty"`
-	Description string             `json:"description,omitempty" bson:"description,omitempty"`
+	Description string             `json:"description,omitempty" binding:"required" bson:"description,omitempty"`
 	CreatedAt   time.Time          `json:"createdAt,omitempty"`
 	UpdatedAt   time.Time          `json:"updatedAt,omitempty"`
 }

@@ -2,7 +2,6 @@ package user_views
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -83,7 +82,7 @@ func GetUserData(c *gin.Context) {
 			return
 		} else {
 			defer cursor.Close(ctx)
-			var usersData []database.UsersModel
+			var usersData []database.UsersModel = []database.UsersModel{}
 			for cursor.Next(c.Request.Context()) {
 				var userData database.UsersModel
 				if err = cursor.Decode(&userData); err != nil {
@@ -115,9 +114,6 @@ func GetUserData(c *gin.Context) {
 	}
 }
 
-type NewUserDataFormat struct {
-	NewUserData my_modules.NewUserRow `json:"newUserData" binding:"required"`
-}
 
 // @BasePath /api
 // @Summary url to update user data
@@ -126,7 +122,7 @@ type NewUserDataFormat struct {
 // @Tags Update user data
 // @Accept json
 // @Produce json
-// @Param new_user body my_modules.NewUserRow true "Add user"
+// @Param new_user body database.UsersModel true "Add user"
 // @Success 200 {object} my_modules.ResponseFormat
 // @Failure 400 {object} my_modules.ResponseFormat
 // @Failure 403 {object} my_modules.ResponseFormat
@@ -140,7 +136,7 @@ func UpdateUserData(c *gin.Context) {
 		return
 	}
 
-	var updateWithData my_modules.NewUserRow
+	var updateWithData database.UsersModel
 
 	if err := c.ShouldBindJSON(&updateWithData); err != nil {
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Invalid input data format", nil)
@@ -149,7 +145,6 @@ func UpdateUserData(c *gin.Context) {
 
 	_time := time.Now()
 	// overide any uuid with user uuid
-	updateWithData.Column_uuid = payload.Data.ID
 	_id, _ := primitive.ObjectIDFromHex(payload.Data.ID)
 
 	res, err := database.MONGO_COLLECTIONS.Users.UpdateOne(
@@ -159,9 +154,9 @@ func UpdateUserData(c *gin.Context) {
 		},
 		bson.M{
 			"$set": bson.M{
-				"email":       updateWithData.Column_email,
-				"name":        updateWithData.Column_name,
-				"description": updateWithData.Column_description,
+				"email":       updateWithData.Email,
+				"name":        updateWithData.Name,
+				"description": updateWithData.Description,
 				"updatedAt":   _time}},
 	)
 	if err != nil {
@@ -191,43 +186,40 @@ func UpdateUserData(c *gin.Context) {
 // @Failure 500 {object} my_modules.ResponseFormat
 // @Router /user/active_sessions/ [get]
 func GetActiveSession(c *gin.Context) {
-	db_connection := database.POSTGRES_DB_CONNECTION
+	ctx := context.Background()
 	payload, ok := my_modules.ExtractTokenPayload(c)
 	if !ok {
 		return
 	}
-	var uuid string = payload.Data.ID
+	_id, _ := primitive.ObjectIDFromHex(payload.Data.ID)
 
-	db_query := `SELECT * FROM active_sessions WHERE user_uuid=$1 and token_id!=$2`
-	rows, err := db_connection.Query(c.Request.Context(), db_query, uuid, payload.Token_id)
+	cursor, err := database.MONGO_COLLECTIONS.ActiveSessions.Find(ctx, bson.M{
+		"user_id":  _id,
+		"token_id": bson.M{"$ne": payload.Token_id},
+	})
 	if err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"query": db_query,
-		}).Errorln("QueryRow failed ==>")
+		if err != mongo.ErrNoDocuments {
+			log.WithFields(log.Fields{
+				"err": err,
+			}).Errorln("Failed to load session data")
+		}
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "No record found", nil)
 		return
 	} else {
-		defer rows.Close() //importent to prevent connection leak
-		var rowSlice []my_modules.ActiveSessionsRow = []my_modules.ActiveSessionsRow{}
-		for rows.Next() {
-			var r my_modules.ActiveSessionsRow
-			err := rows.Scan(&r.Column_id, &r.Column_uuid, &r.Column_user_uuid, &r.Column_token_id, &r.Column_ua, &r.Column_ip, &r.Column_exp, &r.Column_status, &r.Column_createdAt, &r.Column_updatedAt)
-			if err != nil {
-				log.Errorln(fmt.Sprintf("Scan failed: %v\n", err))
+		defer cursor.Close(ctx)
+		var sessionsData []database.ActiveSessionsModel = []database.ActiveSessionsModel{}
+		for cursor.Next(c.Request.Context()) {
+			var sessionData database.ActiveSessionsModel
+			if err = cursor.Decode(&sessionData); err != nil {
+				my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in retriving session data", nil)
+				return
 			}
-			rowSlice = append(rowSlice, r)
+			sessionsData = append(sessionsData, sessionData)
 		}
-
-		if err := rows.Err(); err != nil {
-			log.Errorln(fmt.Sprintf("Row Err in rows.Next/rows.Scan failed: %v\n", err))
-			my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Error in retriving active session", nil)
-			return
-		}
-
-		my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", rowSlice)
+		my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Record found", sessionsData)
 		return
 	}
+
 }
 
 // @BasePath /api
@@ -243,34 +235,47 @@ func GetActiveSession(c *gin.Context) {
 // @Failure 500 {object} my_modules.ResponseFormat
 // @Router /user/ [delete]
 func Deleteuser(c *gin.Context) {
-	db_connection := database.POSTGRES_DB_CONNECTION
+	// db_connection := database.POSTGRES_DB_CONNECTION
 	payload, ok := my_modules.ExtractTokenPayload(c)
 	if !ok {
 		return
 	}
 
-	var uuid string = payload.Data.ID
+	var id string = payload.Data.ID
+	_id, _id_err := primitive.ObjectIDFromHex(payload.Data.ID)
 
-	if uuid == "" {
-		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "UUID of user is not provided", nil)
+	if id == "" || _id_err != nil {
+		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "UUID of user is not provided", _id_err)
 		return
 	}
 
-	const sql_stmt string = `DELETE FROM users WHERE uuid=$1`
-	res, err := db_connection.Exec(context.Background(), sql_stmt, uuid)
+	result, err := database.MONGO_COLLECTIONS.Users.DeleteOne(context.Background(), bson.M{
+		"_id": _id,
+	})
 	if err != nil {
 		log.WithFields(log.Fields{
 			"err": err,
-			"sql": fmt.Sprintf(`DELETE FROM users WHERE uuid=%s`, uuid),
 		}).Errorln("Failed to delete user data")
 		my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Failed to delete user data", nil)
 		return
 	}
+	rows_deleted := result.DeletedCount
 
-	rows_deleted := res.RowsAffected()
+	// const sql_stmt string = `DELETE FROM users WHERE uuid=$1`
+	// res, err := db_connection.Exec(context.Background(), sql_stmt, uuid)
+	// if err != nil {
+	// 	log.WithFields(log.Fields{
+	// 		"err": err,
+	// 		"sql": fmt.Sprintf(`DELETE FROM users WHERE uuid=%s`, uuid),
+	// 	}).Errorln("Failed to delete user data")
+	// 	my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Failed to delete user data", nil)
+	// 	return
+	// }
+
+	// rows_deleted := res.RowsAffected()
 
 	var response_data = make(map[string]interface{})
-	response_data["deleted_user_with_uuid"] = uuid
+	response_data["deleted_user_with_uuid"] = id
 	response_data["deleted_count"] = rows_deleted
 	if rows_deleted > 0 {
 		my_modules.DeleteCookie(c, "access_token")
@@ -299,23 +304,38 @@ func Logout(c *gin.Context) {
 	my_modules.CreateAndSendResponse(c, http.StatusOK, "success", "Logged out", nil)
 }
 
-func updateActiveSession(activeSessionsRow my_modules.ActiveSessionsRow, status string) (int64, error) {
-	db_connection := database.POSTGRES_DB_CONNECTION
+func updateActiveSession(activeSessionsRow database.ActiveSessionsModel, status string) (int64, error) {
+	// db_connection := database.POSTGRES_DB_CONNECTION
 
-	var sql_stmt string = `UPDATE active_sessions SET status=$1 WHERE token_id=$2 AND user_uuid=$3 AND exp=$4`
-	if status == "blocked" {
-		sql_stmt += ` AND status='active'`
+	where_map:=map[string]interface{}{
+		"user_id": activeSessionsRow.UserID,
+		"token_id":activeSessionsRow.TokenID,
+		"exp":activeSessionsRow.Exp,
 	}
-	res, err := db_connection.Exec(context.Background(), sql_stmt, status, activeSessionsRow.Column_token_id, activeSessionsRow.Column_user_uuid, activeSessionsRow.Column_exp)
+	if status == "blocked" {
+		where_map["status"]="active"
+	}
 
-	if err != nil {
+	where,err_bson:=bson.Marshal(where_map)
+	if err_bson!=nil{
+		return -1, err_bson
+	}
+
+
+	result,err:=database.MONGO_COLLECTIONS.ActiveSessions.UpdateOne(
+		context.Background(),
+		where,
+		bson.M{
+			"$set":bson.M{ "status":status},
+		},
+	)
+	if err!=nil{
 		log.WithFields(log.Fields{
-			"err": err,
-			"sql": fmt.Sprintf(`UPDATE active_sessions SET status=%s WHERE token_id=%s,user_uuid=%s,exp=%d,status="active"`, "blocked", activeSessionsRow.Column_token_id, activeSessionsRow.Column_user_uuid, activeSessionsRow.Column_exp),
+			"err": err,			
 		}).Errorln("Failed to update user data")
 		return -1, err
 	}
-	rows_updated := res.RowsAffected()
+	rows_updated:=result.ModifiedCount
 	return rows_updated, nil
 }
 
@@ -326,7 +346,7 @@ func updateActiveSession(activeSessionsRow my_modules.ActiveSessionsRow, status 
 // @Tags Block sessions
 // @Accept json
 // @Produce json
-// @Param block_active_session body my_modules.ActiveSessionsRow true "block token"
+// @Param block_active_session body database.ActiveSessionsModel true "block token"
 // @Success 200 {object} my_modules.ResponseFormat
 // @Failure 400 {object} my_modules.ResponseFormat
 // @Failure 403 {object} my_modules.ResponseFormat
@@ -339,14 +359,15 @@ func BlockSession(c *gin.Context) {
 		return
 	}
 
-	var activeSessionsRow my_modules.ActiveSessionsRow
+	var activeSessionsRow database.ActiveSessionsModel
 	if err := c.ShouldBindJSON(&activeSessionsRow); err != nil {
 		my_modules.CreateAndSendResponse(c, http.StatusBadRequest, "error", "Invalid input data format", nil)
 		return
 	}
 
 	// overide any existing uuid with uuid of current user
-	activeSessionsRow.Column_user_uuid = payload.Data.ID
+	_id, _ := primitive.ObjectIDFromHex(payload.Data.ID)
+	activeSessionsRow.UserID = _id
 
 	rows_updated, err := updateActiveSession(activeSessionsRow, "blocked")
 	if err != nil {
@@ -357,8 +378,8 @@ func BlockSession(c *gin.Context) {
 		my_modules.CreateAndSendResponse(c, http.StatusInternalServerError, "error", "Token doesn't exists/Already blacklisted", nil)
 		return
 	}
-	var exp_sec time.Duration = time.UnixMilli(activeSessionsRow.Column_exp).UTC().Sub(time.Now().UTC())
-	r_err := redis_db_connection.SetEX(context.Background(), activeSessionsRow.Column_token_id, activeSessionsRow.Column_user_uuid,
+	var exp_sec time.Duration = time.UnixMilli(activeSessionsRow.Exp).UTC().Sub(time.Now().UTC())
+	r_err := redis_db_connection.SetEX(context.Background(), activeSessionsRow.TokenID, activeSessionsRow.UserID.Hex(),
 		exp_sec).Err()
 	if r_err != nil {
 		rows_updated, err := updateActiveSession(activeSessionsRow, "active")

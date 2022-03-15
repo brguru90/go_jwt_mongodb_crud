@@ -23,7 +23,7 @@ var SERVER_PORT string = "8000"
 func main() {
 
 	my_modules.InitLogger()
-	database.ConnectPostgres()
+	// database.ConnectPostgres()
 	database.InitMongoDB()
 	database.ConnectRedis()
 	database.InitRedisPool()
