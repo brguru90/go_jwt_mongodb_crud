@@ -10,6 +10,6 @@ sudo apt install libpq-dev -y
 bash -c """
 virtualenv -p python3 ./myenv
 . ./myenv/bin/activate
-pip3 install psycopg2
+pip3 install pymongo
 
 """

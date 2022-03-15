@@ -1,6 +1,7 @@
 import multiprocessing
-import uuid,secrets,string,datetime,psycopg2
-from psycopg2.pool import ThreadedConnectionPool
+from unicodedata import name
+import uuid,secrets,string,datetime
+import pymongo
 from multiprocessing import Pool
 import time
  
@@ -16,35 +17,32 @@ def sql_populate(DATA_COUNT=10000,BATCH_SIZE=1000):
 
     def insert_into_tb(i):
         try:
-            connection = psycopg2.connect(user="guru",
-                                    password="guru",
-                                    host="127.0.0.1",
-                                    port="5432",
-                                    database="jwt4")
+            myclient = pymongo.MongoClient("mongodb://root:root@localhost:27017/")
+            mydb = myclient["jwt4"]
+            mycol = mydb["users"]
 
-            cursor = connection.cursor()
-            postgres_insert_query = f"""INSERT INTO users
-                                        ("uuid", "name","email", "description", "createdAt","updatedAt") 
-                                        VALUES 
-                                        ('{str(uuid.uuid4())}','{random_str(10)}','{random_str(5)}@{random_str(5)}.com','{random_str(400)}','{datetime.datetime.now()}','{datetime.datetime.now()}')"""
-            cursor.execute(postgres_insert_query)
+            row={
+                "name":random_str(10),
+                "email":f"'{random_str(5)}@{random_str(5)}.com'",
+                "description":random_str(400),
+                "createdAt":datetime.datetime.now(),
+                "updatedAt":datetime.datetime.now()
+            }
 
-            connection.commit()
-            count = cursor.rowcount
+            x = mycol.insert_one(row)
+            # print(x.inserted_id)           
             # print(count, f"{i}th Record inserted successfully into mobile table")
             print("=",end="")
            
-
-        except (Exception, psycopg2.Error) as error:
+        except pymongo.errors.ConnectionFailure as error:
             print("Failed to connect DB", error)
 
+        except Exception as error:
+            print("Exception: ", error)
+
         finally:
-            # closing database connection.
-            if  cursor.close():
-                cursor.close()
-            if connection:
-                connection.close()
-                # print("PostgreSQL connection is closed")
+            if myclient:
+                myclient.close()
 
     def run_in_batch(DATA_COUNT,BATCH_SIZE):
         global count_insert
