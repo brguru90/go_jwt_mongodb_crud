@@ -568,12 +568,6 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
-                "_id": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -581,9 +575,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
-                },
-                "updatedAt": {
                     "type": "string"
                 }
             }

@@ -12,12 +12,12 @@ import (
 )
 
 type UsersModel struct {
-	ID          primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	ID          primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty" swaggerignore:"true"`
 	Email       string             `json:"email,omitempty" binding:"required" bson:"email,omitempty"`
 	Name        string             `json:"name,omitempty" binding:"required" bson:"name,omitempty"`
 	Description string             `json:"description,omitempty" binding:"required" bson:"description,omitempty"`
-	CreatedAt   time.Time          `json:"createdAt,omitempty"`
-	UpdatedAt   time.Time          `json:"updatedAt,omitempty"`
+	CreatedAt   time.Time          `json:"createdAt,omitempty" swaggerignore:"true"`
+	UpdatedAt   time.Time          `json:"updatedAt,omitempty" swaggerignore:"true"`
 }
 
 func InitUserCollection() {

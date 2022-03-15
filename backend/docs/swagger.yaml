@@ -22,17 +22,11 @@ definitions:
     type: object
   database.UsersModel:
     properties:
-      _id:
-        type: string
-      createdAt:
-        type: string
       description:
         type: string
       email:
         type: string
       name:
-        type: string
-      updatedAt:
         type: string
     required:
     - description
