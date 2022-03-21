@@ -11,12 +11,13 @@ import (
 	"learn_go/src/middlewares"
 	"learn_go/src/my_modules"
 
+	docs "learn_go/docs"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
-	docs "learn_go/docs"
-   swaggerfiles "github.com/swaggo/files"
-   ginSwagger "github.com/swaggo/gin-swagger"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 var SERVER_PORT string = "8000"
@@ -53,7 +54,6 @@ func main() {
 	// all_router.Use(static.Serve("/", static.LocalFile("./src/static", true)))
 	all_router.Use(static.Serve("/", static.LocalFile("../frontend/build", true)))
 
-
 	if os.Getenv("GIN_MODE") != "release" {
 		all_router.Use(cors.Default())
 	}
@@ -70,16 +70,14 @@ func main() {
 		})
 		apis_set_1.InitApiTest(api_router) // more apis imported
 
-		api_router.Use(func (c *gin.Context)  {
-			if c.Request.RequestURI=="/api/swagger" || c.Request.RequestURI=="/api/swagger/"{
+		api_router.Use(func(c *gin.Context) {
+			if c.Request.RequestURI == "/api/swagger" || c.Request.RequestURI == "/api/swagger/" {
 				c.Redirect(http.StatusTemporaryRedirect, c.Request.RequestURI+"/index.html")
-			} else{
+			} else {
 				c.Next()
-			}		
+			}
 		}).GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 	}
-
-	
 
 	if os.Getenv("SERVER_PORT") != "" {
 		SERVER_PORT = os.Getenv("SERVER_PORT")
