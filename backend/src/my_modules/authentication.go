@@ -15,6 +15,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var JWT_TOKEN_EXPIRE_IN_MINS, _ = strconv.ParseInt(os.Getenv("JWT_TOKEN_EXPIRE_IN_MINS"), 10, 64)
@@ -51,7 +52,7 @@ func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (st
 	token_id := ""
 
 	if _rand, r_err := randomBytes(100); r_err == nil {
-		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.FormatInt(int64(time_now),10)
+		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.FormatInt(int64(time_now), 10)
 	}
 
 	var accessTokenPayload AccessTokenClaims = AccessTokenClaims{
@@ -61,6 +62,7 @@ func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (st
 			Data:         data,
 			IssuedAtTime: time_now,
 			Exp:          time_now + JWT_TOKEN_EXPIRE,
+			Csrf_token:   csrf_token,
 		},
 	}
 
@@ -139,7 +141,7 @@ func Authenticate(c *gin.Context, newUserRow database.UsersModel) AccessToken {
 	return access_token_payload.AccessToken
 }
 
-func LoginStatus(c *gin.Context) (AccessToken, string, int, bool) {
+func LoginStatus(c *gin.Context, enforce_csrf_check bool) (AccessToken, string, int, bool) {
 	var token_claims AccessTokenClaims
 	access_token, err := c.Cookie("access_token")
 
@@ -175,8 +177,8 @@ func LoginStatus(c *gin.Context) (AccessToken, string, int, bool) {
 	if !token.Valid {
 		return AccessToken{}, "unAuthorized", http.StatusForbidden, false
 	}
-	
-	if time.Now().UnixMilli()>token_claims.AccessToken.Exp{
+
+	if time.Now().UnixMilli() > token_claims.AccessToken.Exp {
 		return AccessToken{}, "tokenExpired", http.StatusForbidden, false
 	}
 
@@ -184,6 +186,30 @@ func LoginStatus(c *gin.Context) (AccessToken, string, int, bool) {
 	if r_err == nil {
 		return token_claims.AccessToken, "Session blocked", http.StatusForbidden, false
 	}
+
+	csrf_token := c.Request.Header.Get("csrf_token")
+	if csrf_token == "" {
+		_id, _ := primitive.ObjectIDFromHex(token_claims.AccessToken.Data.ID)
+		token_claims.AccessToken = Authenticate(c, database.UsersModel{
+			Email: token_claims.AccessToken.Data.Email,
+			ID:    _id,
+		})
+		if enforce_csrf_check {
+			return AccessToken{}, "missing csrf token", http.StatusForbidden, false
+		}
+	} else {
+		if token_claims.AccessToken.Csrf_token != csrf_token {
+			_id, _ := primitive.ObjectIDFromHex(token_claims.AccessToken.Data.ID)
+			token_claims.AccessToken = Authenticate(c, database.UsersModel{
+				Email: token_claims.AccessToken.Data.Email,
+				ID:    _id,
+			})
+			if enforce_csrf_check {
+				return AccessToken{}, "invalid csrf token", http.StatusForbidden, false
+			}
+		}
+	}
+
 	return token_claims.AccessToken, "", http.StatusOK, true
 }
 

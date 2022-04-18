@@ -14,7 +14,7 @@
     "start": "npm-run-all  --serial swag dev_server",
     "race": "go run --race src/main.go",
     "go_init": "go mod init learn_go",
-    "resolve_dependencies": "go mod tidy",
+    "resolve_dependencies": "go mod tidy -e -go=1.16 && go mod tidy -e -go=1.17",
     "install_swag":"go install github.com/swaggo/swag/cmd/swag@latest",
     "install": "npm-run-all  --serial --continue-on-error go_init resolve_dependencies install_swag",
     "build_go": "go build -v -o go_server src/main.go",

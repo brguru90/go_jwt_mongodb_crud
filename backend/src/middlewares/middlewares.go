@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"learn_go/src/my_modules"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -49,7 +50,7 @@ func ApiSpecificMiddleware() gin.HandlerFunc {
 
 func ValidateToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		decoded_token, err, http_status, ok := my_modules.LoginStatus(c)
+		decoded_token, err, http_status, ok := my_modules.LoginStatus(c,os.Getenv("APP_ENV") == "production")
 		if http_status <= 0 || http_status != 200 {
 			my_modules.CreateAndSendResponse(c, http_status, "error", err, nil)
 			c.Abort()
