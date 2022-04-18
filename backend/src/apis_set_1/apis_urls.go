@@ -30,6 +30,7 @@ func InitApiTest(router *gin.RouterGroup) {
 	router.POST("sign_up/", user_views.SignUp)
 	router.POST("login/", user_views.Login)
 	router.GET("login_status/", user_views.LoginStatus)
+	router.GET("all_users/", user_views.GetAllUserData)
 
 	{
 		protected_router := router.Group("", middlewares.ValidateToken())
