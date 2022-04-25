@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"learn_go/src/apis_set_1"
+	"learn_go/src/configs"
 	"learn_go/src/database"
 	"learn_go/src/database/triggers"
 	"learn_go/src/middlewares"
@@ -23,7 +23,7 @@ import (
 var SERVER_PORT string = "8000"
 
 func main() {
-
+	configs.InitEnv()
 	my_modules.InitLogger()
 	// database.ConnectPostgres()
 	database.InitMongoDB()
@@ -35,13 +35,13 @@ func main() {
 	// init with default middlewares
 	var all_router *gin.Engine = gin.Default()
 
-	if os.Getenv("DISABLE_COLOR") == "true" {
+	if configs.EnvConfigs.DISABLE_COLOR {
 		gin.DisableConsoleColor()
 	} else {
 		gin.ForceConsoleColor()
 	}
 
-	if os.Getenv("GIN_MODE") == "release" {
+	if configs.EnvConfigs.GIN_MODE == "release" {
 		// init without any middlewares
 		all_router = gin.New()
 		// but adding this
@@ -54,7 +54,7 @@ func main() {
 	// all_router.Use(static.Serve("/", static.LocalFile("./src/static", true)))
 	all_router.Use(static.Serve("/", static.LocalFile("../frontend/build", true)))
 
-	if os.Getenv("GIN_MODE") != "release" {
+	if configs.EnvConfigs.GIN_MODE != "release" {
 		all_router.Use(cors.Default())
 	}
 	docs.SwaggerInfo.BasePath = "/api"
@@ -79,10 +79,6 @@ func main() {
 		}).GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 	}
 
-	if os.Getenv("SERVER_PORT") != "" {
-		SERVER_PORT = os.Getenv("SERVER_PORT")
-	}
-	// log.Fatal(http.ListenAndServe(":8080", all_router))
-	bind_to_host := fmt.Sprintf(":%s", SERVER_PORT) //formatted host string
+	bind_to_host := fmt.Sprintf(":%d", configs.EnvConfigs.SERVER_PORT) //formatted host string
 	all_router.Run(bind_to_host)
 }

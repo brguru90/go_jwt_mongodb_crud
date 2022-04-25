@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
-	"os"
+	"learn_go/src/configs"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -23,7 +23,16 @@ type MongoCollections struct {
 var MONGO_COLLECTIONS MongoCollections
 
 func InitMongoDB() {
-	mongo_url := fmt.Sprintf("mongodb://%s:%s@%s:%s/?authSource=admin", os.Getenv("MONGO_DB_USER"), os.Getenv("MONGO_DB_PASSWORD"), os.Getenv("MONGO_DB_HOST"), os.Getenv("MONGO_DB_PORT"))
+
+	var DB_USER string = configs.EnvConfigs.MONGO_DB_USER
+	var DB_PASSWORD string = configs.EnvConfigs.MONGO_DB_PASSWORD
+	var DB_HOST string = configs.EnvConfigs.MONGO_DB_HOST
+	var DATABASE string = configs.EnvConfigs.MONGO_DATABASE
+	var DB_PORT int64 = configs.EnvConfigs.MONGO_DB_PORT
+	
+	mongo_url := fmt.Sprintf("mongodb://%s:%s@%s:%d/?authSource=admin", DB_USER, DB_PASSWORD,DB_HOST, DB_PORT)
+
+	log.Infoln(mongo_url)
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	var err error
@@ -38,7 +47,7 @@ func InitMongoDB() {
 		}).Error("Unable to connect to database ==>")
 	}
 
-	MONGO_DATABASE = MONGO_DB_CONNECTION.Database(os.Getenv("MONGO_DATABASE"))
+	MONGO_DATABASE = MONGO_DB_CONNECTION.Database(DATABASE)
 	MONGO_COLLECTIONS.Users = MONGO_DATABASE.Collection("users")
 	MONGO_COLLECTIONS.ActiveSessions = MONGO_DATABASE.Collection("active_sessions")
 
