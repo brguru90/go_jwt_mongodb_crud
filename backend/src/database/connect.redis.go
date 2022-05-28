@@ -27,6 +27,7 @@ func ConnectRedis() {
 		Addr:     "localhost:6379",
 		Password: "", // no password set
 		DB:       0,  // use default DB
+		PoolSize: 1000,
 	})
 
 	_ping := REDIS_DB_CONNECTION.Ping(ctx)
@@ -57,8 +58,9 @@ func InitRedisPool() {
 	// ! So this library will mainly used for API caching
 	// https://github.com/gomodule/redigo/
 	REDIS_DB_CONNECTION_POOL = &redispool.Pool{
-		MaxIdle:   80,
-		MaxActive: 12000,
+		MaxIdle:   100,
+		MaxActive: 1500,
+		Wait:      true,
 		Dial: func() (redispool.Conn, error) {
 			conn, err := redispool.Dial("tcp", "localhost:6379")
 			if err != nil {

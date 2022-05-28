@@ -12,6 +12,8 @@ import (
 
 func TriggerForUsersModification() {
 
+	database.REDIS_DB_CONNECTION.Del(context.TODO(), "users_update_in_progress")
+
 	updateStream, err := database.MONGO_COLLECTIONS.Users.Watch(context.Background(), mongo.Pipeline{})
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -37,29 +39,30 @@ func TriggerForUsersModification() {
 		// operationType: insert,delete,update
 		if data["fullDocument"] != "" {
 			var userData database.UsersModel
-			document_key:=data["documentKey"].(bson.M)["_id"].(primitive.ObjectID)
+			document_key := data["documentKey"].(bson.M)["_id"].(primitive.ObjectID)
 
 			switch data["operationType"] {
 			case "insert":
 				{
 					bsonBytes, _ := bson.Marshal(data["fullDocument"])
 					bson.Unmarshal(bsonBytes, &userData)
-					OnUserModification(document_key.Hex(),userData,data["operationType"].(string))
+					OnUserModification(document_key.Hex(), userData, data["operationType"].(string))
 				}
 			case "update":
 				{
 					bsonBytes, _ := bson.Marshal(data["updatedFields"])
 					bson.Unmarshal(bsonBytes, &userData)
-					userData.ID=document_key
-					OnUserModification(document_key.Hex(),userData,data["operationType"].(string))
+					userData.ID = document_key
+					OnUserModification(document_key.Hex(), userData, data["operationType"].(string))
 				}
-			case "delete":{
-				
-			}
+			case "delete":
+				{
+
+				}
 			default:
 				log.WithFields(log.Fields{
-					"operationType":data["operationType"],
-					"data":data,
+					"operationType": data["operationType"],
+					"data":          data,
 				}).Warnln("Unhandled operation")
 			}
 

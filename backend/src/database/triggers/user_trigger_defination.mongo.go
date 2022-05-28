@@ -3,7 +3,9 @@ package triggers
 import (
 	"context"
 	"learn_go/src/database"
+	"learn_go/src/my_modules"
 	"strconv"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -53,18 +55,21 @@ func getUsersCount(ctx context.Context) {
 }
 
 func modifyCacheProgressStatus(operation string, ctx context.Context) {
-	const max_users_update_in_progress_ttl=time.Minute*5
-	
-	users_update_in_progress, err := database.REDIS_DB_CONNECTION.Get(ctx, "users_update_in_progress").Result()
+	const max_users_update_in_progress_ttl = time.Minute * 15
+
+	var redis_lock sync.Mutex
+	redis_lock.Lock()
+	users_update_in_progress, err := database.RedisPoolGet("users_update_in_progress")
 	if err == nil {
+		// if key users_update_in_progress present with some count
 		users_update_in_progress_int, _ := strconv.ParseInt(users_update_in_progress, 10, 64)
-		if operation=="delete"{
+		if operation == "delete" {
 			users_update_in_progress_int--
-			if users_update_in_progress_int==0{
+			if users_update_in_progress_int == 0 {
 				database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
-				log.Debugln("deleted users_update_in_progress")				
+				log.Debugln("deleted users_update_in_progress")
 			}
-		} else{
+		} else {
 			users_update_in_progress_int++
 		}
 
@@ -72,30 +77,45 @@ func modifyCacheProgressStatus(operation string, ctx context.Context) {
 		// 	"users_update_in_progress_int":users_update_in_progress_int,
 		// }).Debugln("modifyCacheProgressStatus")
 
-		if users_update_in_progress_int!=0{
-			database.REDIS_DB_CONNECTION.Set(ctx, "users_update_in_progress", strconv.FormatInt(users_update_in_progress_int, 10),max_users_update_in_progress_ttl )
+		if users_update_in_progress_int != 0 {
+			database.RedisPoolSet("users_update_in_progress", strconv.FormatInt(users_update_in_progress_int, 10), max_users_update_in_progress_ttl)
 		}
 	} else {
+		// if key users_update_in_progress not exists
 		if operation != "delete" {
-			database.REDIS_DB_CONNECTION.Set(ctx, "users_update_in_progress", "1", max_users_update_in_progress_ttl)
+			database.RedisPoolSet("users_update_in_progress", "1", max_users_update_in_progress_ttl)
 		}
 	}
+	redis_lock.Unlock()
 }
 
+var invalidate_cache_timeout context.CancelFunc = nil
+
 func invalidateCache(_id string) {
-	log.WithFields(log.Fields{
-		"_id":_id,
-	}).Debugln("invalidateCache....")
-	ctx := context.Background()
+	// log.WithFields(log.Fields{
+	// 	"_id": _id,
+	// }).Debugln("invalidateCache....")
+	const max_users_update_in_progress_ttl = time.Minute * 15
 
-	modifyCacheProgressStatus("insert",ctx)
-	eraseAllUserPaginationCache(ctx)
-	deleteUserCache(_id, ctx)
-	modifyCacheProgressStatus("delete",ctx)
+	if invalidate_cache_timeout != nil {
+		invalidate_cache_timeout()
+	}
+	database.REDIS_DB_CONNECTION.Set(context.Background(), "users_update_in_progress", "1", max_users_update_in_progress_ttl)
+	cb := func() {
+		ctx := context.Background()
+		eraseAllUserPaginationCache(ctx)
+		deleteUserCache(_id, ctx)
+		getUsersCount(ctx)
+		database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
+	}
+	invalidate_cache_timeout = my_modules.SetTimeOut(cb, time.Millisecond*500)
 
-	getUsersCount(ctx)
+	// modifyCacheProgressStatus("insert", ctx)
+	// modifyCacheProgressStatus("delete", ctx)
+
+	// getUsersCount(ctx)
 }
 
 func OnUserModification(_id string, userData database.UsersModel, operationType string) {
-	go invalidateCache(_id)
+	invalidateCache(_id)
 }
