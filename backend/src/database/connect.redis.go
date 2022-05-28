@@ -62,7 +62,7 @@ func InitRedisPool() {
 		MaxActive: 1500,
 		Wait:      true,
 		Dial: func() (redispool.Conn, error) {
-			conn, err := redispool.Dial("tcp", "localhost:6379")
+			conn, err := redispool.DialURL("redis://localhost:6379/0")
 			if err != nil {
 				log.WithFields(log.Fields{
 					"Error": err,
@@ -79,6 +79,8 @@ func InitRedisPool() {
 		log.WithFields(log.Fields{
 			"Error": err,
 		}).Panic("Unable to ping redis ppool")
+	} else {
+		log.Infoln("connected to REDIS_DB_CONNECTION_POOL")
 	}
 
 	if err := RedisPoolSet("test_connection_pool", "value", 2*time.Minute); err != nil {
@@ -135,6 +137,39 @@ func RedisPoolGet(key string) (string, error) {
 	return s, err
 }
 
+func RedisPoolDel(key string) error {
+	conn := REDIS_DB_CONNECTION_POOL.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("DEL", key)
+	return err
+}
+
+func RedisPoolHSet_Bytes(hash_key string, field_key string, value []byte, ttl_sec time.Duration) error {
+	conn := REDIS_DB_CONNECTION_POOL.Get()
+	defer conn.Close()
+
+	var err error
+	_, err = conn.Do("HSET", hash_key, field_key, value)
+	if err == nil {
+		if !(ttl_sec < 0) {
+			_, err = conn.Do("EXPIRE", hash_key, fmt.Sprintf("%v", (ttl_sec).Seconds()))
+		}
+	}
+	return err
+}
+
+func RedisPoolHGet_Bytes(hash_key string, field_key string) ([]byte, error) {
+	conn := REDIS_DB_CONNECTION_POOL.Get()
+	defer conn.Close()
+
+	s, err := redispool.Bytes(conn.Do("HGET", hash_key, field_key))
+	if err != nil {
+		return []byte{}, err
+	}
+	return s, err
+}
+
 func RedisPoolSet_Bytes(key string, value []byte, ttl_sec time.Duration) error {
 	conn := REDIS_DB_CONNECTION_POOL.Get()
 	defer conn.Close()
@@ -169,6 +204,22 @@ func RedisPoolSetJSON(key string, value interface{}, ttl_sec time.Duration) erro
 
 func RedisPoolGetJSON(key string, destination interface{}) error {
 	val, err := RedisPoolGet_Bytes(key)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(val, &destination)
+}
+
+func RedisPoolHSetJSON(hash_key string, field_key string, value interface{}, ttl_sec time.Duration) error {
+	json_str, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return RedisPoolHSet_Bytes(hash_key, field_key, json_str, ttl_sec)
+}
+
+func RedisPoolHGetJSON(hash_key string, field_key string, destination interface{}) error {
+	val, err := RedisPoolHGet_Bytes(hash_key, field_key)
 	if err != nil {
 		return err
 	}

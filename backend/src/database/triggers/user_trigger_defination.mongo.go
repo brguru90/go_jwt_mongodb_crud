@@ -12,30 +12,40 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// func deleteUserCache(_id string, ctx context.Context) {
+// 	// Deletes the cache for the specified user by his ID
+// 	_users_keys, err := database.REDIS_DB_CONNECTION.Keys(ctx, "users___id="+_id+"___/api/user/*").Result()
+// 	database.REDIS_DB_CONNECTION.
+// 	if err == nil {
+// 		for _, key := range _users_keys {
+// 			database.REDIS_DB_CONNECTION.Del(ctx, key)
+// 			log.WithFields(log.Fields{
+// 				"key": key,
+// 			}).Debugln(">>>>>>>>>>>>>>>> Redis, " + key + " Removed")
+// 		}
+// 	}
+// }
+
 func deleteUserCache(_id string, ctx context.Context) {
 	// Deletes the cache for the specified user by his ID
-	_users_keys, err := database.REDIS_DB_CONNECTION.Keys(ctx, "users___id="+_id+"___/api/user/*").Result()
-	if err == nil {
-		for _, key := range _users_keys {
-			database.REDIS_DB_CONNECTION.Del(ctx, key)
-			log.WithFields(log.Fields{
-				"key": key,
-			}).Debugln(">>>>>>>>>>>>>>>> Redis, " + key + " Removed")
-		}
-	}
+	database.REDIS_DB_CONNECTION.Del(ctx, "users___id="+_id)
 }
 
+// func eraseAllUserPaginationCache(ctx context.Context) {
+// 	// erasing pagination caches
+// 	_paginated_keys, err := database.REDIS_DB_CONNECTION.Keys(ctx, "users___paginated*").Result()
+// 	if err == nil {
+// 		for _, key := range _paginated_keys {
+// 			database.REDIS_DB_CONNECTION.Del(ctx, key)
+// 			log.WithFields(log.Fields{
+// 				"key": key,
+// 			}).Debugln(">>>>>>>>>>>>>>>> Redis, users___paginated removed")
+// 		}
+// 	}
+// }
+
 func eraseAllUserPaginationCache(ctx context.Context) {
-	// erasing pagination caches
-	_paginated_keys, err := database.REDIS_DB_CONNECTION.Keys(ctx, "users___paginated*").Result()
-	if err == nil {
-		for _, key := range _paginated_keys {
-			database.REDIS_DB_CONNECTION.Del(ctx, key)
-			log.WithFields(log.Fields{
-				"key": key,
-			}).Debugln(">>>>>>>>>>>>>>>> Redis, users___paginated removed")
-		}
-	}
+	database.REDIS_DB_CONNECTION.Del(ctx, "users___paginated")
 }
 
 func getUsersCount(ctx context.Context) {
@@ -101,7 +111,7 @@ func invalidateCache(_id string) {
 		invalidate_cache_timeout()
 	}
 	database.REDIS_DB_CONNECTION.Set(context.Background(), "users_update_in_progress", "1", max_users_update_in_progress_ttl)
-	deleteUserCache(_id, context.Background())
+	go deleteUserCache(_id, context.Background())
 	cb := func() {
 		ctx := context.Background()
 		eraseAllUserPaginationCache(ctx)
