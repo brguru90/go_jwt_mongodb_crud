@@ -79,11 +79,11 @@ func GetCachedResponse(view_func func(*gin.Context), table_name string, cache_tt
 			if strings.Contains(strings.ToLower(fmt.Sprintf("%s", cache_mis_err)), "key is missing") {
 				log.Debugln("cache miss --> " + _uri)
 			} else {
-				log.WithFields(log.Fields{
-					"err":     cache_mis_err,
-					"_uri":    _uri,
-					"_raw_dt": _raw_dt,
-				}).Error("while getting response from cache")
+				// log.WithFields(log.Fields{
+				// 	"err":     cache_mis_err,
+				// 	"_uri":    _uri,
+				// 	"_raw_dt": _raw_dt,
+				// }).Error("while getting response from cache")
 			}
 		}
 
