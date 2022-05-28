@@ -4,8 +4,6 @@ import (
 	"context"
 	"learn_go/src/database"
 	"learn_go/src/my_modules"
-	"strconv"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -64,40 +62,40 @@ func getUsersCount(ctx context.Context) {
 	}
 }
 
-func modifyCacheProgressStatus(operation string, ctx context.Context) {
-	const max_users_update_in_progress_ttl = time.Minute * 15
+// func modifyCacheProgressStatus(operation string, ctx context.Context) {
+// 	const max_users_update_in_progress_ttl = time.Minute * 15
 
-	var redis_lock sync.Mutex
-	redis_lock.Lock()
-	users_update_in_progress, err := database.RedisPoolGet("users_update_in_progress")
-	if err == nil {
-		// if key users_update_in_progress present with some count
-		users_update_in_progress_int, _ := strconv.ParseInt(users_update_in_progress, 10, 64)
-		if operation == "delete" {
-			users_update_in_progress_int--
-			if users_update_in_progress_int == 0 {
-				database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
-				log.Debugln("deleted users_update_in_progress")
-			}
-		} else {
-			users_update_in_progress_int++
-		}
+// 	var redis_lock sync.Mutex
+// 	redis_lock.Lock()
+// 	users_update_in_progress, err := database.RedisPoolGet("users_update_in_progress")
+// 	if err == nil {
+// 		// if key users_update_in_progress present with some count
+// 		users_update_in_progress_int, _ := strconv.ParseInt(users_update_in_progress, 10, 64)
+// 		if operation == "delete" {
+// 			users_update_in_progress_int--
+// 			if users_update_in_progress_int == 0 {
+// 				database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
+// 				log.Debugln("deleted users_update_in_progress")
+// 			}
+// 		} else {
+// 			users_update_in_progress_int++
+// 		}
 
-		// log.WithFields(log.Fields{
-		// 	"users_update_in_progress_int":users_update_in_progress_int,
-		// }).Debugln("modifyCacheProgressStatus")
+// 		// log.WithFields(log.Fields{
+// 		// 	"users_update_in_progress_int":users_update_in_progress_int,
+// 		// }).Debugln("modifyCacheProgressStatus")
 
-		if users_update_in_progress_int != 0 {
-			database.RedisPoolSet("users_update_in_progress", strconv.FormatInt(users_update_in_progress_int, 10), max_users_update_in_progress_ttl)
-		}
-	} else {
-		// if key users_update_in_progress not exists
-		if operation != "delete" {
-			database.RedisPoolSet("users_update_in_progress", "1", max_users_update_in_progress_ttl)
-		}
-	}
-	redis_lock.Unlock()
-}
+// 		if users_update_in_progress_int != 0 {
+// 			database.RedisPoolSet("users_update_in_progress", strconv.FormatInt(users_update_in_progress_int, 10), max_users_update_in_progress_ttl)
+// 		}
+// 	} else {
+// 		// if key users_update_in_progress not exists
+// 		if operation != "delete" {
+// 			database.RedisPoolSet("users_update_in_progress", "1", max_users_update_in_progress_ttl)
+// 		}
+// 	}
+// 	redis_lock.Unlock()
+// }
 
 var invalidate_cache_timeout context.CancelFunc = nil
 
