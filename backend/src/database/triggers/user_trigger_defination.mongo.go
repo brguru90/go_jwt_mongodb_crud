@@ -101,10 +101,10 @@ func invalidateCache(_id string) {
 		invalidate_cache_timeout()
 	}
 	database.REDIS_DB_CONNECTION.Set(context.Background(), "users_update_in_progress", "1", max_users_update_in_progress_ttl)
+	deleteUserCache(_id, context.Background())
 	cb := func() {
 		ctx := context.Background()
 		eraseAllUserPaginationCache(ctx)
-		deleteUserCache(_id, ctx)
 		getUsersCount(ctx)
 		database.REDIS_DB_CONNECTION.Del(ctx, "users_update_in_progress")
 	}
