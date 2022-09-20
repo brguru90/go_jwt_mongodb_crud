@@ -12,19 +12,24 @@ import (
 	"strconv"
 	"time"
 
+	"crypto/cipher"
+	"crypto/aes"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+var EncryptionKey = "thisis32bitlongpassphraseimusing"
+var encryption_bytes_padding = []byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}
 
 type TokenPayload struct {
 	Email string `json:"email" binding:"required"`
 	ID    string `json:"_id" binding:"required"`
 }
 type AccessToken struct {
-	Data TokenPayload `json:"data" binding:"required"`
+	Data          TokenPayload `json:"data" binding:"required"`
+	EncryptedData string       `json:"encrypted_data" binding:"required"`
 	// Data         interface{}  `json:"data" binding:"required"`
 	Uname        string `json:"uname" binding:"required"`
 	Token_id     string `json:"token_id" binding:"required"`
@@ -44,6 +49,51 @@ func randomBytes(size int) (blk []byte, err error) {
 	return
 }
 
+
+func Encode(b []byte) string {
+	return base64.StdEncoding.EncodeToString(b)
+}
+func Decode(s string) []byte {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+// Encrypt method is to encrypt or hide any classified text
+func EncryptAES(key string, text string) string {
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		if err!=nil{
+			log.WithFields(log.Fields{
+				"Error": err,
+			}).Panic("NewCipher")		
+		}
+	}
+	plainText := []byte(text)
+	cfb := cipher.NewCFBEncrypter(block, encryption_bytes_padding)
+	cipherText := make([]byte, len(plainText))
+	cfb.XORKeyStream(cipherText, plainText)
+	return Encode(cipherText)
+}
+
+func DecryptAES(key string, text string) string {	
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		if err!=nil{
+			log.WithFields(log.Fields{
+				"Error": err,
+			}).Panic("NewCipher")		
+		}
+	}
+	cipherText := Decode(text)
+	cfb := cipher.NewCFBDecrypter(block, encryption_bytes_padding)
+	plainText := make([]byte, len(cipherText))
+	cfb.XORKeyStream(plainText, cipherText)
+	return string(plainText)
+}
+
 func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (string, AccessTokenClaims) {
 	time_now := time.Now().UnixMilli()
 	token_id := ""
@@ -52,14 +102,17 @@ func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (st
 		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.FormatInt(int64(time_now), 10)
 	}
 
+	data_to_encrypt:="some data"
+
 	var accessTokenPayload AccessTokenClaims = AccessTokenClaims{
 		AccessToken: AccessToken{
-			Uname:        uname,
-			Token_id:     token_id,
-			Data:         data,
-			IssuedAtTime: time_now,
-			Exp:          time_now + configs.EnvConfigs.JWT_TOKEN_EXPIRE_IN_MINS*60*1000,
-			Csrf_token:   csrf_token,
+			Uname:         uname,
+			Token_id:      token_id,
+			Data:          data,
+			EncryptedData: EncryptAES(EncryptionKey, data_to_encrypt),
+			IssuedAtTime:  time_now,
+			Exp:           time_now + configs.EnvConfigs.JWT_TOKEN_EXPIRE_IN_MINS*60*1000,
+			Csrf_token:    EncryptAES(EncryptionKey, csrf_token),
 		},
 	}
 
@@ -195,7 +248,7 @@ func LoginStatus(c *gin.Context, enforce_csrf_check bool) (AccessToken, string, 
 			return AccessToken{}, "missing csrf token", http.StatusForbidden, false
 		}
 	} else {
-		if token_claims.AccessToken.Csrf_token != csrf_token {
+		if DecryptAES(EncryptionKey,token_claims.AccessToken.Csrf_token) != csrf_token {
 			_id, _ := primitive.ObjectIDFromHex(token_claims.AccessToken.Data.ID)
 			token_claims.AccessToken = Authenticate(c, database.UsersModel{
 				Email: token_claims.AccessToken.Data.Email,
@@ -206,6 +259,7 @@ func LoginStatus(c *gin.Context, enforce_csrf_check bool) (AccessToken, string, 
 			}
 		}
 	}
+	token_claims.AccessToken.EncryptedData=DecryptAES(EncryptionKey,token_claims.AccessToken.EncryptedData)
 
 	return token_claims.AccessToken, "", http.StatusOK, true
 }
