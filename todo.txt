@@ -8,5 +8,8 @@
 8. block user on redis with expiry  @done
 9. cron to clear inactive session  @done
 10. Benchmark  @done
+11. like ExtractTokenPayload, should implement getter & setter method to read and write session data to redis with respect to token id
+12. should have the functionality to store data on jwt with encryption
+    in case of frequent read & less write
 11. Readme --> compare go benchmark score with https://github.com/brguru90/node-sql-and-jwt-demo benchmark
 12. implement client side caching based on last updated value of record in table
