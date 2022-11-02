@@ -61,7 +61,7 @@ func SignUp(c *gin.Context) {
 			// }).Info("successfully inserted data into mongo users")
 		}
 	}
-	access_token_payload := my_modules.Authenticate(c, newUserData)
+	access_token_payload := my_modules.Authenticate(c, newUserData,"some safe data",false)
 	{
 		_time := time.Now()
 		_, ins_err := database.MONGO_COLLECTIONS.ActiveSessions.InsertOne(ctx, database.ActiveSessionsModel{
@@ -130,7 +130,7 @@ func Login(c *gin.Context) {
 			return
 		}
 	}
-	access_token_payload := my_modules.Authenticate(c, userData)
+	access_token_payload := my_modules.Authenticate(c, userData,"some safe data",false)
 	{
 		_time := time.Now()
 		_, ins_err := database.MONGO_COLLECTIONS.ActiveSessions.InsertOne(ctx, database.ActiveSessionsModel{
