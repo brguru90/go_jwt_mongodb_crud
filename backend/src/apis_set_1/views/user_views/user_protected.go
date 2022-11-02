@@ -37,6 +37,12 @@ func GetUserData(c *gin.Context) {
 	if !ok {
 		return
 	}
+
+	log.WithFields(log.Fields{
+		"EncryptedData":payload.EncryptedData,
+	}).Infoln()
+
+
 	var test_session interface{}=nil
 	payload.GetSession(&test_session)
 

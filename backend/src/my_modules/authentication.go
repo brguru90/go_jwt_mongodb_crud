@@ -94,7 +94,7 @@ func DecryptAES(key string, text string) string {
 	return string(plainText)
 }
 
-func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (string, AccessTokenClaims) {
+func GenerateAccessToken(uname string, csrf_token string, data TokenPayload,encrypted_data string) (string, AccessTokenClaims) {
 	time_now := time.Now().UnixMilli()
 	token_id := ""
 
@@ -102,14 +102,13 @@ func GenerateAccessToken(uname string, csrf_token string, data TokenPayload) (st
 		token_id = data.ID + "_" + base64.StdEncoding.EncodeToString(_rand) + "_" + strconv.FormatInt(int64(time_now), 10)
 	}
 
-	data_to_encrypt:="some data"
 
 	var accessTokenPayload AccessTokenClaims = AccessTokenClaims{
 		AccessToken: AccessToken{
 			Uname:         uname,
 			Token_id:      token_id,
 			Data:          data,
-			EncryptedData: EncryptAES(EncryptionKey, data_to_encrypt),
+			EncryptedData: encrypted_data,
 			IssuedAtTime:  time_now,
 			Exp:           time_now + configs.EnvConfigs.JWT_TOKEN_EXPIRE_IN_MINS*60*1000,
 			Csrf_token:    EncryptAES(EncryptionKey, csrf_token),
@@ -175,16 +174,28 @@ func EnsureCsrfToken(c *gin.Context) string {
 	return csrf_token
 }
 
-func Authenticate(c *gin.Context, newUserRow database.UsersModel) AccessToken {
+func Authenticate(c *gin.Context, newUserRow database.UsersModel,data_to_encrypt string,already_encrypted bool) AccessToken {
 	token_payload := TokenPayload{
 		Email: newUserRow.Email,
 		ID:    newUserRow.ID.Hex(),
 	}
-	access_token, access_token_payload := GenerateAccessToken(
-		newUserRow.Email,
-		EnsureCsrfToken(c),
-		token_payload,
-	)
+	var access_token string
+	var access_token_payload AccessTokenClaims
+	if already_encrypted{
+		access_token, access_token_payload = GenerateAccessToken(
+			newUserRow.Email,
+			EnsureCsrfToken(c),
+			token_payload,
+			data_to_encrypt,
+		)
+	} else{
+		access_token, access_token_payload = GenerateAccessToken(
+			newUserRow.Email,
+			EnsureCsrfToken(c),
+			token_payload,
+			EncryptAES(EncryptionKey, data_to_encrypt),
+		)
+	}
 	newUserRow_json, _ := json.Marshal(newUserRow)
 	SetCookie(c, "access_token", access_token, access_token_payload.Exp, true)
 	SetCookie(c, "user_data", string(newUserRow_json), access_token_payload.Exp, false)
@@ -243,7 +254,7 @@ func LoginStatus(c *gin.Context, enforce_csrf_check bool) (AccessToken, string, 
 		token_claims.AccessToken = Authenticate(c, database.UsersModel{
 			Email: token_claims.AccessToken.Data.Email,
 			ID:    _id,
-		})
+		},token_claims.AccessToken.EncryptedData,true)
 		if enforce_csrf_check {
 			return AccessToken{}, "missing csrf token", http.StatusForbidden, false
 		}
@@ -253,7 +264,7 @@ func LoginStatus(c *gin.Context, enforce_csrf_check bool) (AccessToken, string, 
 			token_claims.AccessToken = Authenticate(c, database.UsersModel{
 				Email: token_claims.AccessToken.Data.Email,
 				ID:    _id,
-			})
+			},token_claims.AccessToken.EncryptedData,true)
 			if enforce_csrf_check {
 				return AccessToken{}, "invalid csrf token", http.StatusForbidden, false
 			}
