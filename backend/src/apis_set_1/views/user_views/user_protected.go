@@ -37,6 +37,18 @@ func GetUserData(c *gin.Context) {
 	if !ok {
 		return
 	}
+	var test_session interface{}=nil
+	payload.GetSession(&test_session)
+
+	if test_session==nil{
+		payload.SetSession("test")
+		log.Infoln("creating new session")
+	} else{
+		log.WithFields(log.Fields{
+			"test_session":test_session,
+		}).Infoln("Existing session data")
+	}
+
 	var id string = payload.Data.ID
 	_id, err_id := primitive.ObjectIDFromHex(payload.Data.ID)
 
